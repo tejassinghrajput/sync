@@ -5,9 +5,6 @@
 logs/
 *.log
 
-# Temporary SQL dumps (exclude from version control)
-dumps/*.sql
-!dumps/.gitkeep
 
 # Backup files
 *.backup
