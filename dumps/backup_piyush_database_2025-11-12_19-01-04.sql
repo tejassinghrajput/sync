@@ -1,6 +1,6 @@
 -- MySQL dump 10.13  Distrib 8.0.43, for Linux (x86_64)
 --
--- Host: localhost    Database: main_database
+-- Host: localhost    Database: piyush_database
 -- ------------------------------------------------------
 -- Server version	8.0.43-0ubuntu0.24.04.2
 
