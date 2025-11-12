@@ -135,16 +135,13 @@ function pushToGitHub($filePath, $commitMessage, $taskId = null) {
     
     if ($taskId) logProgress($taskId, "📦 Staging files for commit...");
     
-    // Add safe directory and push from main project
+    // Simple git push - work with existing repo, no config changes
+    $remoteUrl = "https://{$token}@github.com/{$repo}.git";
     $commands = [
-        "git config --global --add safe.directory " . escapeshellarg($projectDir) . " 2>&1",
-        "cd " . escapeshellarg($projectDir),
-        "git config user.email " . escapeshellarg($email),
-        "git config user.name " . escapeshellarg($name),
-        "git checkout {$branch} 2>&1 || git checkout -b {$branch} 2>&1",
+        "cd " . escapeshellarg($projectDir) . " 2>&1",
         "git add -A 2>&1",
         "git diff --cached --quiet || git commit -m " . escapeshellarg($commitMessage) . " 2>&1",
-        "git push origin {$branch} 2>&1"
+        "git push " . escapeshellarg($remoteUrl) . " HEAD:{$branch} 2>&1"
     ];
     
     $fullCmd = implode(" && ", $commands);
