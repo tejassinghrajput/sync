@@ -15,8 +15,13 @@ function respond($success, $message) {
 }
 
 function shell($cmd){
-    exec($cmd." 2>&1", $output, $code);
-    return [$code, implode("\n", $output)];
+    $output = shell_exec($cmd . " 2>&1");
+    $code = 0;
+    exec("echo $?", $codeOutput);
+    if (!empty($codeOutput)) {
+        $code = intval($codeOutput[0]);
+    }
+    return [$code, $output ?? ''];
 }
 
 function validateCSRF() {
@@ -138,11 +143,16 @@ function pushToGitHub($filePath, $commitMessage, $taskId = null) {
     // Just add, commit, push - that's it
     $remoteUrl = "https://{$token}@github.com/{$repo}.git";
     
-    // Use sudo with -c flag to pass safe.directory config directly to each git command
-    $gitCmd = "sudo git -c safe.directory=" . escapeshellarg($projectDir);
-    
+    // Use shell_exec with proper error handling
     if ($taskId) logProgress($taskId, "⬆️ Adding files...");
-    list($addCode, $addOut) = shell("cd " . escapeshellarg($projectDir) . " && {$gitCmd} add -A 2>&1");
+    
+    $addCmd = "cd " . escapeshellarg($projectDir) . " && git -c safe.directory=" . escapeshellarg($projectDir) . " add -A 2>&1";
+    $addOut = shell_exec($addCmd);
+    $addCode = 0;
+    if (stripos($addOut, 'fatal') !== false || stripos($addOut, 'error') !== false) {
+        $addCode = 1;
+    }
+    
     logMessage("Git add result (code: $addCode): $addOut");
     
     if ($addCode !== 0) {
@@ -151,12 +161,19 @@ function pushToGitHub($filePath, $commitMessage, $taskId = null) {
     }
     
     if ($taskId) logProgress($taskId, "⬆️ Committing changes...");
-    list($commitCode, $commitOut) = shell("cd " . escapeshellarg($projectDir) . " && ({$gitCmd} diff --cached --quiet || {$gitCmd} commit -m " . escapeshellarg($commitMessage) . ") 2>&1");
-    logMessage("Git commit result (code: $commitCode): $commitOut");
+    
+    $commitCmd = "cd " . escapeshellarg($projectDir) . " && (git -c safe.directory=" . escapeshellarg($projectDir) . " diff --cached --quiet || git -c safe.directory=" . escapeshellarg($projectDir) . " commit -m " . escapeshellarg($commitMessage) . ") 2>&1";
+    $commitOut = shell_exec($commitCmd);
+    logMessage("Git commit result: $commitOut");
     
     if ($taskId) logProgress($taskId, "⬆️ Pushing to remote repository...");
-    $fullCmd = "cd " . escapeshellarg($projectDir) . " && {$gitCmd} push " . escapeshellarg($remoteUrl) . " HEAD:{$branch} 2>&1";
-    list($code, $output) = shell($fullCmd);
+    
+    $pushCmd = "cd " . escapeshellarg($projectDir) . " && git -c safe.directory=" . escapeshellarg($projectDir) . " push " . escapeshellarg($remoteUrl) . " HEAD:{$branch} 2>&1";
+    $output = shell_exec($pushCmd);
+    $code = 0;
+    if (stripos($output, 'fatal') !== false || stripos($output, 'error') !== false) {
+        $code = 128;
+    }
     
     logMessage("Git push command output (code: $code): $output");
     
