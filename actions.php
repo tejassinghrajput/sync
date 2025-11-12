@@ -170,8 +170,12 @@ function pushToGitHub($filePath, $commitMessage, $taskId = null) {
     
     if ($taskId) logProgress($taskId, "⬆️ Pushing to remote repository...");
     
-    // Use GIT_TERMINAL_PROMPT=0 to disable password prompts and pass token in URL
-    $pushCmd = "cd " . escapeshellarg($projectDir) . " && GIT_TERMINAL_PROMPT=0 git -c safe.directory=" . escapeshellarg($projectDir) . " push " . escapeshellarg($remoteUrl) . " HEAD:{$branch} 2>&1";
+    // Set git credential helper to use the token and disable terminal prompts
+    $pushCmd = "cd " . escapeshellarg($projectDir) . " && " .
+               "GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/echo " .
+               "git -c safe.directory=" . escapeshellarg($projectDir) . " " .
+               "-c credential.helper='!f() { echo \"username=git\"; echo \"password={$token}\"; }; f' " .
+               "push origin {$branch} 2>&1";
     $output = shell_exec($pushCmd);
     $code = 0;
     if (stripos($output, 'fatal') !== false || stripos($output, 'error') !== false) {
