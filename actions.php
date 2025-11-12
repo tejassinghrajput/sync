@@ -137,10 +137,22 @@ function pushToGitHub($filePath, $commitMessage, $taskId = null) {
     
     // Just add, commit, push - that's it
     $remoteUrl = "https://{$token}@github.com/{$repo}.git";
-    $fullCmd = "cd " . escapeshellarg($projectDir) . " && git add -A && (git diff --cached --quiet || git commit -m " . escapeshellarg($commitMessage) . ") && git push " . escapeshellarg($remoteUrl) . " HEAD:{$branch} 2>&1";
+    
+    // Run commands separately to see where it fails
+    if ($taskId) logProgress($taskId, "⬆️ Changing to git directory...");
+    list($cdCode, $cdOut) = shell("cd " . escapeshellarg($projectDir) . " 2>&1 && pwd");
+    logMessage("CD Result (code: $cdCode): $cdOut");
+    
+    if ($taskId) logProgress($taskId, "⬆️ Adding files...");
+    list($addCode, $addOut) = shell("cd " . escapeshellarg($projectDir) . " && git add -A 2>&1");
+    logMessage("Git add result (code: $addCode): $addOut");
+    
+    if ($taskId) logProgress($taskId, "⬆️ Committing changes...");
+    list($commitCode, $commitOut) = shell("cd " . escapeshellarg($projectDir) . " && (git diff --cached --quiet || git commit -m " . escapeshellarg($commitMessage) . ") 2>&1");
+    logMessage("Git commit result (code: $commitCode): $commitOut");
     
     if ($taskId) logProgress($taskId, "⬆️ Pushing to remote repository...");
-    
+    $fullCmd = "cd " . escapeshellarg($projectDir) . " && git push " . escapeshellarg($remoteUrl) . " HEAD:{$branch} 2>&1";
     list($code, $output) = shell($fullCmd);
     
     logMessage("Git push command output (code: $code): $output");
