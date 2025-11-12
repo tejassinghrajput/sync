@@ -129,8 +129,8 @@ function pushToGitHub($filePath, $commitMessage, $taskId = null) {
         return [false, $error];
     }
     
-    // Use the main project directory
-    $projectDir = __DIR__;
+    // Use the actual Git repository directory (not this script's directory)
+    $projectDir = '/var/www/html/sync';
     $fileName = basename($filePath);
     
     if ($taskId) logProgress($taskId, "📦 Staging files for commit...");
