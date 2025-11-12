@@ -93,19 +93,32 @@ function pushToGitHub($filePath, $commitMessage) {
     
     // Check if file exists
     if (!file_exists($filePath)) {
-        return [false, "File not found: $filePath"];
+        $error = "File not found: $filePath";
+        logMessage("GitHub push failed: $error");
+        return [false, $error];
     }
     
     $dumpDir = dirname($filePath);
     $fileName = basename($filePath);
     
+    // Mark directory as safe for git
+    $safeCmd = "git config --global --add safe.directory " . escapeshellarg($dumpDir) . " 2>&1";
+    shell($safeCmd);
+    
     // Initialize git repo if not exists
     if (!file_exists("$dumpDir/.git")) {
-        $initCmd = "cd " . escapeshellarg($dumpDir) . " && git init && git remote add origin https://{$token}@github.com/{$repo}.git 2>&1";
+        $initCommands = [
+            "cd " . escapeshellarg($dumpDir),
+            "git init 2>&1",
+            "git config user.email " . escapeshellarg($email),
+            "git config user.name " . escapeshellarg($name),
+            "git remote add origin https://{$token}@github.com/{$repo}.git 2>&1 || git remote set-url origin https://{$token}@github.com/{$repo}.git 2>&1",
+            "git checkout -b {$branch} 2>&1 || git checkout {$branch} 2>&1"
+        ];
+        
+        $initCmd = implode(" && ", $initCommands);
         list($initCode, $initOutput) = shell($initCmd);
-        if ($initCode !== 0 && strpos($initOutput, 'already exists') === false) {
-            logMessage("Git init failed: $initOutput");
-        }
+        logMessage("Git init output: $initOutput");
     }
     
     // Git commands to commit and push
@@ -113,21 +126,26 @@ function pushToGitHub($filePath, $commitMessage) {
         "cd " . escapeshellarg($dumpDir),
         "git config user.email " . escapeshellarg($email),
         "git config user.name " . escapeshellarg($name),
-        "git add " . escapeshellarg($fileName),
-        "git diff --staged --quiet || git commit -m " . escapeshellarg($commitMessage),
-        "git push -f https://{$token}@github.com/{$repo}.git HEAD:{$branch} 2>&1"
+        "git add " . escapeshellarg($fileName) . " 2>&1",
+        "git diff --cached --quiet || git commit -m " . escapeshellarg($commitMessage) . " 2>&1",
+        "git push -u origin {$branch} 2>&1 || git push -f origin {$branch} 2>&1"
     ];
     
     $fullCmd = implode(" && ", $commands);
     list($code, $output) = shell($fullCmd);
     
-    // Check if push was successful (exit code 0 or "up-to-date" message)
-    if ($code === 0 || strpos($output, 'up-to-date') !== false || strpos($output, 'Everything up-to-date') !== false) {
+    logMessage("Git push command output (code: $code): $output");
+    
+    // Check if push was successful
+    if ($code === 0 || 
+        strpos($output, 'up-to-date') !== false || 
+        strpos($output, 'Everything up-to-date') !== false ||
+        strpos($output, 'branch') !== false && strpos($output, 'set up to track') !== false) {
         logMessage("GitHub push successful: $fileName");
         return [true, "Pushed to GitHub: $fileName"];
     } else {
-        logMessage("GitHub push failed: $output");
-        return [false, "Push failed: $output"];
+        logMessage("GitHub push failed with code $code: $output");
+        return [false, "Push failed (code: $code): " . substr($output, 0, 200)];
     }
 }
 
