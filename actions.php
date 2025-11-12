@@ -77,8 +77,39 @@ function createBackup($user, $pass, $db, $dumpDir) {
     return [true, $backupFile];
 }
 
-function pushToGitHub($filePath, $commitMessage) {
+// Progress logging functions
+function initProgress($taskId) {
+    $progressFile = sys_get_temp_dir() . "/sync_progress_{$taskId}.log";
+    file_put_contents($progressFile, '');
+    return $progressFile;
+}
+
+function logProgress($taskId, $message) {
+    $progressFile = sys_get_temp_dir() . "/sync_progress_{$taskId}.log";
+    $timestamp = date('H:i:s');
+    file_put_contents($progressFile, "[$timestamp] $message\n", FILE_APPEND);
+    logMessage($message); // Also log to main log
+}
+
+function getProgress($taskId) {
+    $progressFile = sys_get_temp_dir() . "/sync_progress_{$taskId}.log";
+    if (file_exists($progressFile)) {
+        return file_get_contents($progressFile);
+    }
+    return '';
+}
+
+function clearProgress($taskId) {
+    $progressFile = sys_get_temp_dir() . "/sync_progress_{$taskId}.log";
+    if (file_exists($progressFile)) {
+        unlink($progressFile);
+    }
+}
+
+function pushToGitHub($filePath, $commitMessage, $taskId = null) {
     global $env;
+    
+    if ($taskId) logProgress($taskId, "🔄 Preparing to push to GitHub...");
     
     if (!isset($env['GITHUB_TOKEN']) || !isset($env['GITHUB_REPO'])) {
         logMessage("GitHub push skipped: Missing GITHUB_TOKEN or GITHUB_REPO in .env");
@@ -98,12 +129,15 @@ function pushToGitHub($filePath, $commitMessage) {
         return [false, $error];
     }
     
-    // Use the main project directory instead of dump directory
+    // Use the main project directory
     $projectDir = __DIR__;
     $fileName = basename($filePath);
     
-    // Git commands to commit and push from main project directory
+    if ($taskId) logProgress($taskId, "📦 Staging files for commit...");
+    
+    // Add safe directory and push from main project
     $commands = [
+        "git config --global --add safe.directory " . escapeshellarg($projectDir) . " 2>&1",
         "cd " . escapeshellarg($projectDir),
         "git config user.email " . escapeshellarg($email),
         "git config user.name " . escapeshellarg($name),
@@ -114,6 +148,8 @@ function pushToGitHub($filePath, $commitMessage) {
     ];
     
     $fullCmd = implode(" && ", $commands);
+    if ($taskId) logProgress($taskId, "⬆️ Pushing to remote repository...");
+    
     list($code, $output) = shell($fullCmd);
     
     logMessage("Git push command output (code: $code): $output");
@@ -124,9 +160,11 @@ function pushToGitHub($filePath, $commitMessage) {
         strpos($output, 'Everything up-to-date') !== false ||
         strpos($output, 'branch') !== false && strpos($output, 'set up to track') !== false) {
         logMessage("GitHub push successful for sync: $fileName");
+        if ($taskId) logProgress($taskId, "✅ Successfully pushed to GitHub!");
         return [true, "Pushed to GitHub repository"];
     } else {
         logMessage("GitHub push failed with code $code: $output");
+        if ($taskId) logProgress($taskId, "⚠️ GitHub push failed: " . substr($output, 0, 100));
         return [false, "Push failed (code: $code): " . substr($output, 0, 200)];
     }
 }
@@ -142,6 +180,15 @@ if ($action === 'logout') {
 // Generate CSRF token for session
 if ($action === 'getToken') {
     respond(true, generateCSRFToken());
+}
+
+// Get progress logs for task
+if ($action === 'getProgress') {
+    $taskId = $_POST['taskId'] ?? '';
+    if (!$taskId) respond(false, 'Task ID required');
+    
+    $progress = getProgress($taskId);
+    respond(true, $progress);
 }
 
 if ($action === 'login') {
@@ -267,46 +314,67 @@ switch($action){
         $target = $_POST['user'] ?? '';
         if (!isset($map[$target])) respond(false, 'Invalid user');
         
+        $taskId = uniqid('sync_', true);
+        initProgress($taskId);
+        
         $fromDB = $map[$target];
         $toDB = $main;
         $dump = "$dumpDir/{$fromDB}_to_main.sql";
 
+        logProgress($taskId, "🚀 Starting sync operation: {$fromDB} → {$toDB}");
+        
         // Test connection
+        logProgress($taskId, "🔍 Validating database connections...");
         if (!testDBConnection($cliUser, $cliPass, $fromDB)) {
+            logProgress($taskId, "❌ Cannot connect to source database: $fromDB");
             respond(false, "Cannot connect to source database: $fromDB");
         }
         if (!testDBConnection($cliUser, $cliPass, $toDB)) {
+            logProgress($taskId, "❌ Cannot connect to target database: $toDB");
             respond(false, "Cannot connect to target database: $toDB");
         }
+        logProgress($taskId, "✅ Database connections validated");
 
         // Create backup of target database
+        logProgress($taskId, "📦 Creating backup of target database...");
         list($backupSuccess, $backupResult) = createBackup($cliUser, $cliPass, $toDB, $dumpDir);
         if (!$backupSuccess) {
+            logProgress($taskId, "❌ Backup failed: $backupResult");
             respond(false, "Backup failed: $backupResult");
         }
+        logProgress($taskId, "✅ Backup created: " . basename($backupResult));
 
         // Dump source database
+        logProgress($taskId, "📤 Dumping source database ($fromDB)...");
         [$code1, $out1] = secureMySQLDump($cliUser, $cliPass, $fromDB, $dump);
         if ($code1 !== 0) {
+            logProgress($taskId, "❌ Dump failed: $out1");
             logMessage("Dump failed: $fromDB → $out1");
             respond(false, "Dump failed: $out1");
         }
+        logProgress($taskId, "✅ Database dumped successfully");
 
         // Import to target database
+        logProgress($taskId, "📥 Importing to target database ($toDB)...");
         [$code2, $out2] = secureMySQLImport($cliUser, $cliPass, $toDB, $dump);
         if ($code2 !== 0) {
+            logProgress($taskId, "❌ Import failed: $out2");
             logMessage("Import failed: $toDB → $out2");
             respond(false, "Import failed: $out2\nBackup available at: $backupResult");
         }
+        logProgress($taskId, "✅ Data imported successfully");
 
         logMessage("Admin synced $fromDB → $toDB (backup: $backupResult)");
         
         // Push to GitHub
         $gitMsg = "Admin sync: {$fromDB} → {$toDB} at " . date('Y-m-d H:i:s');
-        list($gitSuccess, $gitOutput) = pushToGitHub($dump, $gitMsg);
+        list($gitSuccess, $gitOutput) = pushToGitHub($dump, $gitMsg, $taskId);
         $gitStatus = $gitSuccess ? "\n✓ Pushed to GitHub" : "\n⚠ GitHub push failed: $gitOutput";
         
-        respond(true, "✓ Successfully dumped $fromDB → $toDB\n✓ Backup created: $backupResult{$gitStatus}");
+        logProgress($taskId, "🎉 Sync operation completed successfully!");
+        clearProgress($taskId);
+        
+        respond(true, "✓ Successfully dumped $fromDB → $toDB\n✓ Backup created: " . basename($backupResult) . "{$gitStatus}");
         break;
 
     case 'toUser':
@@ -314,89 +382,131 @@ switch($action){
         $target = $_POST['user'] ?? '';
         if (!isset($map[$target])) respond(false, 'Invalid user');
         
+        $taskId = uniqid('sync_', true);
+        initProgress($taskId);
+        
         $fromDB = $main;
         $toDB = $map[$target];
         $dump = "$dumpDir/main_to_{$target}.sql";
 
+        logProgress($taskId, "🚀 Starting sync operation: main → {$toDB}");
+        
         // Test connection
+        logProgress($taskId, "🔍 Validating database connections...");
         if (!testDBConnection($cliUser, $cliPass, $fromDB)) {
+            logProgress($taskId, "❌ Cannot connect to source database: $fromDB");
             respond(false, "Cannot connect to source database: $fromDB");
         }
         if (!testDBConnection($cliUser, $cliPass, $toDB)) {
+            logProgress($taskId, "❌ Cannot connect to target database: $toDB");
             respond(false, "Cannot connect to target database: $toDB");
         }
+        logProgress($taskId, "✅ Database connections validated");
 
         // Create backup of target database
+        logProgress($taskId, "📦 Creating backup of target database...");
         list($backupSuccess, $backupResult) = createBackup($cliUser, $cliPass, $toDB, $dumpDir);
         if (!$backupSuccess) {
+            logProgress($taskId, "❌ Backup failed: $backupResult");
             respond(false, "Backup failed: $backupResult");
         }
+        logProgress($taskId, "✅ Backup created: " . basename($backupResult));
 
         // Dump source database
+        logProgress($taskId, "📤 Dumping source database ($fromDB)...");
         [$code1, $out1] = secureMySQLDump($cliUser, $cliPass, $fromDB, $dump);
         if ($code1 !== 0) {
+            logProgress($taskId, "❌ Dump failed: $out1");
             logMessage("Dump failed: $fromDB → $out1");
             respond(false, "Dump failed: $out1");
         }
+        logProgress($taskId, "✅ Database dumped successfully");
 
         // Import to target database
+        logProgress($taskId, "📥 Importing to target database ($toDB)...");
         [$code2, $out2] = secureMySQLImport($cliUser, $cliPass, $toDB, $dump);
         if ($code2 !== 0) {
+            logProgress($taskId, "❌ Import failed: $out2");
             logMessage("Import failed: $toDB → $out2");
             respond(false, "Import failed: $out2\nBackup available at: $backupResult");
         }
+        logProgress($taskId, "✅ Data imported successfully");
 
         logMessage("Admin synced main → $toDB (backup: $backupResult)");
         
         // Push to GitHub
         $gitMsg = "Admin sync: main → {$toDB} at " . date('Y-m-d H:i:s');
-        list($gitSuccess, $gitOutput) = pushToGitHub($dump, $gitMsg);
+        list($gitSuccess, $gitOutput) = pushToGitHub($dump, $gitMsg, $taskId);
         $gitStatus = $gitSuccess ? "\n✓ Pushed to GitHub" : "\n⚠ GitHub push failed: $gitOutput";
         
-        respond(true, "✓ Successfully dumped main → $toDB\n✓ Backup created: $backupResult{$gitStatus}");
+        logProgress($taskId, "🎉 Sync operation completed successfully!");
+        clearProgress($taskId);
+        
+        respond(true, "✓ Successfully dumped main → $toDB\n✓ Backup created: " . basename($backupResult) . "{$gitStatus}");
         break;
 
     case 'mainToMine':
         if ($role !== 'user') respond(false, 'Unauthorized');
         $myDB = $map[$user];
         $dump = "$dumpDir/main_to_{$user}.sql";
+        
+        $taskId = uniqid('sync_', true);
+        initProgress($taskId);
 
+        logProgress($taskId, "🚀 Starting sync operation: main → {$myDB}");
+        
         // Test connection
+        logProgress($taskId, "🔍 Validating database connections...");
         if (!testDBConnection($cliUser, $cliPass, $main)) {
+            logProgress($taskId, "❌ Cannot connect to main database");
             respond(false, "Cannot connect to main database");
         }
         if (!testDBConnection($cliUser, $cliPass, $myDB)) {
+            logProgress($taskId, "❌ Cannot connect to your database: $myDB");
             respond(false, "Cannot connect to your database: $myDB");
         }
+        logProgress($taskId, "✅ Database connections validated");
 
         // Create backup of user database
+        logProgress($taskId, "📦 Creating backup of your database...");
         list($backupSuccess, $backupResult) = createBackup($cliUser, $cliPass, $myDB, $dumpDir);
         if (!$backupSuccess) {
+            logProgress($taskId, "❌ Backup failed: $backupResult");
             respond(false, "Backup failed: $backupResult");
         }
+        logProgress($taskId, "✅ Backup created: " . basename($backupResult));
 
         // Dump main database
+        logProgress($taskId, "📤 Dumping main database...");
         [$code1, $out1] = secureMySQLDump($cliUser, $cliPass, $main, $dump);
         if ($code1 !== 0) {
+            logProgress($taskId, "❌ Dump failed: $out1");
             logMessage("Dump failed: main → $out1");
             respond(false, "Dump failed: $out1");
         }
+        logProgress($taskId, "✅ Database dumped successfully");
 
         // Import to user database
+        logProgress($taskId, "📥 Importing to your database ($myDB)...");
         [$code2, $out2] = secureMySQLImport($cliUser, $cliPass, $myDB, $dump);
         if ($code2 !== 0) {
+            logProgress($taskId, "❌ Import failed: $out2");
             logMessage("Import failed: $myDB → $out2");
             respond(false, "Import failed: $out2\nBackup available at: $backupResult");
         }
+        logProgress($taskId, "✅ Data imported successfully");
 
         logMessage("User $user synced main → $myDB (backup: $backupResult)");
         
         // Push to GitHub
         $gitMsg = "User {$user} sync: main → {$myDB} at " . date('Y-m-d H:i:s');
-        list($gitSuccess, $gitOutput) = pushToGitHub($dump, $gitMsg);
+        list($gitSuccess, $gitOutput) = pushToGitHub($dump, $gitMsg, $taskId);
         $gitStatus = $gitSuccess ? "\n✓ Pushed to GitHub" : "\n⚠ GitHub push failed: $gitOutput";
         
-        respond(true, "✓ Successfully synced main → $myDB\n✓ Backup created: $backupResult{$gitStatus}");
+        logProgress($taskId, "🎉 Sync operation completed successfully!");
+        clearProgress($taskId);
+        
+        respond(true, "✓ Successfully synced main → $myDB\n✓ Backup created: " . basename($backupResult) . "{$gitStatus}");
         break;
 
     default:

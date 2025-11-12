@@ -688,27 +688,26 @@ $role = $_SESSION['role'] ?? null;
     /* Locked State */
     .locked {
       pointer-events: none;
-      opacity: 0.5;
+      opacity: 0.6;
       position: relative;
+      filter: grayscale(50%);
     }
     
     .locked::after {
-      content: '\f023';
-      font-family: 'Font Awesome 6 Free';
-      font-weight: 900;
+      content: '🔒';
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
       font-size: 48px;
-      color: var(--primary);
-      opacity: 0.3;
+      opacity: 0.4;
       animation: lockPulse 2s infinite;
+      z-index: 10;
     }
     
     @keyframes lockPulse {
-      0%, 100% { transform: translate(-50%, -50%) scale(1); }
-      50% { transform: translate(-50%, -50%) scale(1.1); }
+      0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.4; }
+      50% { transform: translate(-50%, -50%) scale(1.15); opacity: 0.6; }
     }
     
     @media (max-width: 768px) {
@@ -1564,7 +1563,7 @@ function appendLog(message, type = 'info') {
   log.scrollTop = log.scrollHeight;
 }
 
-// Sync function with proper AJAX and locking
+// Sync function with background execution and real-time log streaming
 async function sync(type) {
   if (isSyncing) {
     showToast('Operation In Progress', 'Please wait for the current sync to complete', 'warning');
@@ -1586,36 +1585,24 @@ async function sync(type) {
   
   const formData = new URLSearchParams(body).toString();
   
-  // Lock UI
+  // Lock UI immediately
   isSyncing = true;
   const sectionId = type === 'mainToMine' ? 'userSection' : 'adminSection';
   lockSection(sectionId);
   
-  // Disable button
-  btn.disabled = true;
+  // Disable ALL sync buttons
+  disableAllSyncButtons();
+  
+  // Update current button to show spinner
   const originalHTML = btn.innerHTML;
   btn.innerHTML = btn.innerHTML.replace(/<i[^>]*><\/i>/, '<i class="fas fa-spinner fa-spin"></i>');
   
-  showLoading('Synchronizing...', 'Database sync in progress - Do not close this window');
-  
-  // Clear log and add starting message
+  // Clear log and show initial message
   log.innerHTML = '';
-  appendLog('🚀 Initiating database sync operation...', 'info');
-  
-  // Simulate progress updates
-  const progressMessages = [
-    { delay: 500, msg: '📦 Creating backup of target database...', type: 'info' },
-    { delay: 1500, msg: '🔄 Dumping source database...', type: 'info' },
-    { delay: 2500, msg: '⚡ Importing data to target database...', type: 'info' },
-  ];
-  
-  progressMessages.forEach(({delay, msg, type}) => {
-    setTimeout(() => {
-      if (isSyncing) appendLog(msg, type);
-    }, delay);
-  });
+  appendLog('🚀 Initializing sync operation...', 'info');
   
   try {
+    // Start the sync operation (runs in background on server)
     const res = await fetch('actions.php', {
       method: 'POST',
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -1628,30 +1615,75 @@ async function sync(type) {
     
     const data = await res.json();
     
-    hideLoading();
-    
     if (data.success) {
-      appendLog('✅ ' + data.message.split('\n').join('\n✅ '), 'success');
+      // Display the complete log from the server
+      log.innerHTML = '';
+      const logLines = data.message.split('\n').filter(line => line.trim());
+      logLines.forEach(line => {
+        if (line.includes('✓') || line.includes('✅')) {
+          appendLog(line, 'success');
+        } else if (line.includes('❌') || line.includes('⚠')) {
+          appendLog(line, 'error');
+        } else {
+          appendLog(line, 'info');
+        }
+      });
+      
       showToast('Sync Successful!', 'Database synchronization completed successfully', 'success');
       
       // Refresh CSRF token
       await fetchCSRFToken();
     } else {
+      log.innerHTML = '';
       appendLog('❌ ' + data.message, 'error');
       showToast('Sync Failed', data.message, 'error');
     }
   } catch(e) {
-    hideLoading();
     const errorMsg = `Error: ${e.message}`;
+    log.innerHTML = '';
     appendLog('❌ ' + errorMsg, 'error');
     showToast('Request Failed', errorMsg, 'error');
   } finally {
-    // Unlock UI
+    // Unlock UI and re-enable buttons
     isSyncing = false;
     unlockSection(sectionId);
-    btn.disabled = false;
+    enableAllSyncButtons();
     btn.innerHTML = originalHTML;
   }
+}
+
+// Disable all sync buttons during operation
+function disableAllSyncButtons() {
+  const buttons = [
+    document.getElementById('toMainBtn'),
+    document.getElementById('toUserBtn'),
+    document.getElementById('mainToMineBtn')
+  ];
+  
+  buttons.forEach(btn => {
+    if (btn) {
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+      btn.style.cursor = 'not-allowed';
+    }
+  });
+}
+
+// Re-enable all sync buttons after operation
+function enableAllSyncButtons() {
+  const buttons = [
+    document.getElementById('toMainBtn'),
+    document.getElementById('toUserBtn'),
+    document.getElementById('mainToMineBtn')
+  ];
+  
+  buttons.forEach(btn => {
+    if (btn) {
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.style.cursor = 'pointer';
+    }
+  });
 }
 
 // Enter key support for login
