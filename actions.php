@@ -170,8 +170,10 @@ function pushToGitHub($filePath, $commitMessage, $taskId = null) {
     
     if ($taskId) logProgress($taskId, "⬆️ Pushing to remote repository...");
     
-    // Set git credential helper to use the token and disable terminal prompts
+    // Create and checkout branch if it doesn't exist, then push
     $pushCmd = "cd " . escapeshellarg($projectDir) . " && " .
+               "(git -c safe.directory=" . escapeshellarg($projectDir) . " show-ref --verify --quiet refs/heads/{$branch} || " .
+               "git -c safe.directory=" . escapeshellarg($projectDir) . " checkout -b {$branch}) && " .
                "GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/echo " .
                "git -c safe.directory=" . escapeshellarg($projectDir) . " " .
                "-c credential.helper='!f() { echo \"username=git\"; echo \"password={$token}\"; }; f' " .
