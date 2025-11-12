@@ -85,29 +85,44 @@ function pushToGitHub($filePath, $commitMessage) {
         return [false, "GitHub credentials not configured"];
     }
     
-    $token = $env['GITHUB_TOKEN'];
-    $repo = $env['GITHUB_REPO']; // Format: "username/repo"
+    $token = trim($env['GITHUB_TOKEN'], "'\"");
+    $repo = trim($env['GITHUB_REPO'], "'\"");
+    $branch = trim($env['GIT_BRANCH'] ?? 'main', "'\"");
+    $email = trim($env['GIT_EMAIL'] ?? 'sync-bot@example.com', "'\"");
+    $name = trim($env['GIT_NAME'] ?? 'DB Sync Bot', "'\"");
     
     // Check if file exists
     if (!file_exists($filePath)) {
         return [false, "File not found: $filePath"];
     }
     
-    // Git commands to commit and push
+    $dumpDir = dirname($filePath);
     $fileName = basename($filePath);
+    
+    // Initialize git repo if not exists
+    if (!file_exists("$dumpDir/.git")) {
+        $initCmd = "cd " . escapeshellarg($dumpDir) . " && git init && git remote add origin https://{$token}@github.com/{$repo}.git 2>&1";
+        list($initCode, $initOutput) = shell($initCmd);
+        if ($initCode !== 0 && strpos($initOutput, 'already exists') === false) {
+            logMessage("Git init failed: $initOutput");
+        }
+    }
+    
+    // Git commands to commit and push
     $commands = [
-        "cd " . escapeshellarg(dirname($filePath)),
-        "git config user.email 'sync-bot@example.com'",
-        "git config user.name 'DB Sync Bot'",
+        "cd " . escapeshellarg($dumpDir),
+        "git config user.email " . escapeshellarg($email),
+        "git config user.name " . escapeshellarg($name),
         "git add " . escapeshellarg($fileName),
-        "git commit -m " . escapeshellarg($commitMessage),
-        "git push https://{$token}@github.com/{$repo}.git main 2>&1"
+        "git diff --staged --quiet || git commit -m " . escapeshellarg($commitMessage),
+        "git push -f https://{$token}@github.com/{$repo}.git HEAD:{$branch} 2>&1"
     ];
     
     $fullCmd = implode(" && ", $commands);
     list($code, $output) = shell($fullCmd);
     
-    if ($code === 0) {
+    // Check if push was successful (exit code 0 or "up-to-date" message)
+    if ($code === 0 || strpos($output, 'up-to-date') !== false || strpos($output, 'Everything up-to-date') !== false) {
         logMessage("GitHub push successful: $fileName");
         return [true, "Pushed to GitHub: $fileName"];
     } else {
