@@ -1,2 +1,42 @@
+# Environment configuration
 .env
 
+# Log files
+logs/
+*.log
+
+# Temporary SQL dumps (exclude from version control)
+dumps/*.sql
+!dumps/.gitkeep
+
+# Backup files
+*.backup
+*.bak
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Session files
+sessions/
+
+# Cache
+cache/
+*.cache
