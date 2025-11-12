@@ -121,11 +121,12 @@ function pushToGitHub($filePath, $commitMessage, $taskId = null) {
         return [false, "GitHub credentials not configured"];
     }
     
-    $token = trim($env['GITHUB_TOKEN'], "'\"");
-    $repo = trim($env['GITHUB_REPO'], "'\"");
-    $branch = trim($env['GIT_BRANCH'] ?? 'main', "'\"");
-    $email = trim($env['GIT_EMAIL'] ?? 'sync-bot@example.com', "'\"");
-    $name = trim($env['GIT_NAME'] ?? 'DB Sync Bot', "'\"");
+    // Properly trim all values including quotes
+    $token = trim($env['GITHUB_TOKEN'], " '\"\t\n\r\0\x0B");
+    $repo = trim($env['GITHUB_REPO'], " '\"\t\n\r\0\x0B");
+    $branch = trim($env['GIT_BRANCH'] ?? 'main', " '\"\t\n\r\0\x0B");
+    $email = trim($env['GIT_EMAIL'] ?? 'sync-bot@example.com', " '\"\t\n\r\0\x0B");
+    $name = trim($env['GIT_NAME'] ?? 'DB Sync Bot', " '\"\t\n\r\0\x0B");
     
     // Check if file exists
     if (!file_exists($filePath)) {
@@ -142,6 +143,7 @@ function pushToGitHub($filePath, $commitMessage, $taskId = null) {
     
     // Just add, commit, push - that's it
     $remoteUrl = "https://{$token}@github.com/{$repo}.git";
+    $safeRemoteUrl = "https://***@github.com/{$repo}.git"; // For logging
     
     // Use shell_exec with proper error handling
     if ($taskId) logProgress($taskId, "⬆️ Adding files...");
@@ -153,27 +155,34 @@ function pushToGitHub($filePath, $commitMessage, $taskId = null) {
         $addCode = 1;
     }
     
-    logMessage("Git add result (code: $addCode): $addOut");
+    logMessage("Git add result (code: $addCode): " . str_replace($token, '***', $addOut));
     
     if ($addCode !== 0) {
         logMessage("Git add failed, aborting push");
-        return [false, "Git add failed: $addOut"];
+        return [false, "Git add failed: " . str_replace($token, '***', $addOut)];
     }
     
     if ($taskId) logProgress($taskId, "⬆️ Committing changes...");
     
     $commitCmd = "cd " . escapeshellarg($projectDir) . " && (git -c safe.directory=" . escapeshellarg($projectDir) . " diff --cached --quiet || git -c safe.directory=" . escapeshellarg($projectDir) . " commit -m " . escapeshellarg($commitMessage) . ") 2>&1";
     $commitOut = shell_exec($commitCmd);
-    logMessage("Git commit result: $commitOut");
+    logMessage("Git commit result: " . str_replace($token, '***', $commitOut));
     
     if ($taskId) logProgress($taskId, "⬆️ Pushing to remote repository...");
     
-    $pushCmd = "cd " . escapeshellarg($projectDir) . " && git -c safe.directory=" . escapeshellarg($projectDir) . " push " . escapeshellarg($remoteUrl) . " HEAD:{$branch} 2>&1";
+    // Use GIT_TERMINAL_PROMPT=0 to disable password prompts and pass token in URL
+    $pushCmd = "cd " . escapeshellarg($projectDir) . " && GIT_TERMINAL_PROMPT=0 git -c safe.directory=" . escapeshellarg($projectDir) . " push " . escapeshellarg($remoteUrl) . " HEAD:{$branch} 2>&1";
     $output = shell_exec($pushCmd);
     $code = 0;
     if (stripos($output, 'fatal') !== false || stripos($output, 'error') !== false) {
         $code = 128;
     }
+    
+    // Hide token in output
+    $output = str_replace($token, '***', $output);
+    
+    // Hide token in output
+    $output = str_replace($token, '***', $output);
     
     logMessage("Git push command output (code: $code): $output");
     
@@ -186,9 +195,10 @@ function pushToGitHub($filePath, $commitMessage, $taskId = null) {
         if ($taskId) logProgress($taskId, "✅ Successfully pushed to GitHub!");
         return [true, "Pushed to GitHub repository"];
     } else {
-        logMessage("GitHub push failed with code $code: $output");
-        if ($taskId) logProgress($taskId, "⚠️ GitHub push failed: " . substr($output, 0, 100));
-        return [false, "Push failed (code: $code): " . substr($output, 0, 200)];
+        $safeOutput = str_replace($token, '***', $output);
+        logMessage("GitHub push failed with code $code: $safeOutput");
+        if ($taskId) logProgress($taskId, "⚠️ GitHub push failed: " . substr($safeOutput, 0, 100));
+        return [false, "Push failed (code: $code): " . substr($safeOutput, 0, 200)];
     }
 }
 
