@@ -138,8 +138,8 @@ function pushToGitHub($filePath, $commitMessage, $taskId = null) {
     // Just add, commit, push - that's it
     $remoteUrl = "https://{$token}@github.com/{$repo}.git";
     
-    // Use -c flag to pass safe.directory config directly to each git command
-    $gitCmd = "git -c safe.directory=" . escapeshellarg($projectDir);
+    // Use sudo with -c flag to pass safe.directory config directly to each git command
+    $gitCmd = "sudo git -c safe.directory=" . escapeshellarg($projectDir);
     
     if ($taskId) logProgress($taskId, "⬆️ Adding files...");
     list($addCode, $addOut) = shell("cd " . escapeshellarg($projectDir) . " && {$gitCmd} add -A 2>&1");
