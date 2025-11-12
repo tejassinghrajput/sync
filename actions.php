@@ -135,16 +135,10 @@ function pushToGitHub($filePath, $commitMessage, $taskId = null) {
     
     if ($taskId) logProgress($taskId, "📦 Staging files for commit...");
     
-    // Simple git push - work with existing repo, no config changes
+    // Just add, commit, push - that's it
     $remoteUrl = "https://{$token}@github.com/{$repo}.git";
-    $commands = [
-        "cd " . escapeshellarg($projectDir) . " 2>&1",
-        "git add -A 2>&1",
-        "git diff --cached --quiet || git commit -m " . escapeshellarg($commitMessage) . " 2>&1",
-        "git push " . escapeshellarg($remoteUrl) . " HEAD:{$branch} 2>&1"
-    ];
+    $fullCmd = "cd " . escapeshellarg($projectDir) . " && git add -A && (git diff --cached --quiet || git commit -m " . escapeshellarg($commitMessage) . ") && git push " . escapeshellarg($remoteUrl) . " HEAD:{$branch} 2>&1";
     
-    $fullCmd = implode(" && ", $commands);
     if ($taskId) logProgress($taskId, "⬆️ Pushing to remote repository...");
     
     list($code, $output) = shell($fullCmd);
