@@ -79,6 +79,7 @@ CREATE TABLE `users` (
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted_at` timestamp NULL DEFAULT NULL,
   `status` int NOT NULL DEFAULT '1' COMMENT '1 = active, 9 = disabled',
+  `kyc_status` int NOT NULL DEFAULT '0' COMMENT '1=approved, 0=not done, 2=pending, 3=expired, 4=disabled',
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`),
   KEY `idx_users_email` (`email`),
@@ -92,7 +93,7 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES ('9f49b8e9-c199-11f0-b299-42010a800002','AC','SDNJ','singhtejas0001@gmail.com','US','0987270288','$2b$10$Sb3YbrZxf7O8wVhyu9ZEAuaOXeGqNq0ZrKeQpKIa2ALcwWmLIFyz.','2025-11-14 20:36:39','2025-11-14 20:36:39',NULL,1),('d800ef26-c199-11f0-b299-42010a800002','AC','SDNJ','tejas@gmail.com','US','0987270288','$2b$10$qGaukT1UVEyrBk2S3Bg89eAKQWdpzYkSuoBgMtvPrOcPZF3NtE8u2','2025-11-14 20:38:14','2025-11-14 20:38:14',NULL,1);
+INSERT INTO `users` VALUES ('9f49b8e9-c199-11f0-b299-42010a800002','AC','SDNJ','singhtejas0001@gmail.com','US','0987270288','$2b$10$Sb3YbrZxf7O8wVhyu9ZEAuaOXeGqNq0ZrKeQpKIa2ALcwWmLIFyz.','2025-11-14 20:36:39','2025-11-15 22:49:40',NULL,1,0),('d800ef26-c199-11f0-b299-42010a800002','AC','SDNJ','tejas@gmail.com','US','0987270288','$2b$10$qGaukT1UVEyrBk2S3Bg89eAKQWdpzYkSuoBgMtvPrOcPZF3NtE8u2','2025-11-14 20:38:14','2025-11-14 20:38:14',NULL,1,0),('f3cfc147-c19e-11f0-b299-42010a800002','Trial ','Acc','trial@t.com','IN','9387892902','$2b$10$T.gZIeMz76YFbUkiHt6MG.EFXXVue3Nn0qZCQ8ww56A9lOyrjyxWi','2025-11-14 21:14:48','2025-11-15 22:50:00',NULL,1,9);
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -105,4 +106,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-11-14 21:11:53
+-- Dump completed on 2025-11-17  8:53:20
