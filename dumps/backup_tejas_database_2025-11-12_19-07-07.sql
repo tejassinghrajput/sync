@@ -1,17 +1,8 @@
-<<<<<<< HEAD
-mysqldump: Got error: 1049: Unknown database 'main_database' when selecting the database
--- MySQL dump 10.13  Distrib 8.0.44, for Linux (x86_64)
---
--- Host: localhost    Database: main_database
--- ------------------------------------------------------
--- Server version	8.0.44-0ubuntu0.24.04.1
-=======
 -- MySQL dump 10.13  Distrib 8.0.43, for Linux (x86_64)
 --
--- Host: localhost    Database: main_database
+-- Host: localhost    Database: tejas_database
 -- ------------------------------------------------------
 -- Server version	8.0.43-0ubuntu0.24.04.2
->>>>>>> 16d8857a9bfb6b440f7c054b40ab5721af7986e1
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -23,8 +14,6 @@ mysqldump: Got error: 1049: Unknown database 'main_database' when selecting the 
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
-<<<<<<< HEAD
-=======
 
 --
 -- Table structure for table `books`
@@ -80,5 +69,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-11-12 19:08:02
->>>>>>> 16d8857a9bfb6b440f7c054b40ab5721af7986e1
+-- Dump completed on 2025-11-12 19:07:07
