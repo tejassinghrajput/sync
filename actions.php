@@ -168,6 +168,17 @@ function pushToGitHub($filePath, $commitMessage, $taskId = null) {
     $commitOut = shell_exec($commitCmd);
     logMessage("Git commit result: " . str_replace($token, '***', $commitOut));
     
+    if ($taskId) logProgress($taskId, "⬇️ Pulling latest changes from remote...");
+    
+    // Pull latest changes before pushing
+    $pullCmd = "cd " . escapeshellarg($projectDir) . " && " .
+               "GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/echo " .
+               "git -c safe.directory=" . escapeshellarg($projectDir) . " " .
+               "-c credential.helper='!f() { echo \"username=git\"; echo \"password={$token}\"; }; f' " .
+               "pull origin {$branch} 2>&1 || true";
+    $pullOut = shell_exec($pullCmd);
+    logMessage("Git pull result: " . str_replace($token, '***', $pullOut));
+    
     if ($taskId) logProgress($taskId, "⬆️ Pushing to remote repository...");
     
     // Create and checkout branch if it doesn't exist, then push
