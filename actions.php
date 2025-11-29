@@ -170,12 +170,16 @@ function pushToGitHub($filePath, $commitMessage, $taskId = null) {
     
     if ($taskId) logProgress($taskId, "⬇️ Pulling latest changes from remote...");
     
-    // Pull latest changes before pushing
+    // Configure git and pull latest changes before pushing with merge strategy
+    $configCmd = "cd " . escapeshellarg($projectDir) . " && " .
+                 "git -c safe.directory=" . escapeshellarg($projectDir) . " config pull.rebase false 2>&1";
+    shell_exec($configCmd);
+    
     $pullCmd = "cd " . escapeshellarg($projectDir) . " && " .
                "GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/echo " .
                "git -c safe.directory=" . escapeshellarg($projectDir) . " " .
                "-c credential.helper='!f() { echo \"username=git\"; echo \"password={$token}\"; }; f' " .
-               "pull origin {$branch} 2>&1 || true";
+               "pull --no-edit origin {$branch} 2>&1 || true";
     $pullOut = shell_exec($pullCmd);
     logMessage("Git pull result: " . str_replace($token, '***', $pullOut));
     
