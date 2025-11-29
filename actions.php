@@ -168,31 +168,16 @@ function pushToGitHub($filePath, $commitMessage, $taskId = null) {
     $commitOut = shell_exec($commitCmd);
     logMessage("Git commit result: " . str_replace($token, '***', $commitOut));
     
-    if ($taskId) logProgress($taskId, "⬇️ Pulling latest changes from remote...");
-    
-    // Configure git and pull latest changes before pushing with merge strategy
-    $configCmd = "cd " . escapeshellarg($projectDir) . " && " .
-                 "git -c safe.directory=" . escapeshellarg($projectDir) . " config pull.rebase false 2>&1";
-    shell_exec($configCmd);
-    
-    $pullCmd = "cd " . escapeshellarg($projectDir) . " && " .
-               "GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/echo " .
-               "git -c safe.directory=" . escapeshellarg($projectDir) . " " .
-               "-c credential.helper='!f() { echo \"username=git\"; echo \"password={$token}\"; }; f' " .
-               "pull --no-edit --allow-unrelated-histories origin {$branch} 2>&1 || true";
-    $pullOut = shell_exec($pullCmd);
-    logMessage("Git pull result: " . str_replace($token, '***', $pullOut));
-    
     if ($taskId) logProgress($taskId, "⬆️ Pushing to remote repository...");
     
-    // Create and checkout branch if it doesn't exist, then push
+    // Create and checkout branch if it doesn't exist, then force push
     $pushCmd = "cd " . escapeshellarg($projectDir) . " && " .
                "(git -c safe.directory=" . escapeshellarg($projectDir) . " show-ref --verify --quiet refs/heads/{$branch} || " .
                "git -c safe.directory=" . escapeshellarg($projectDir) . " checkout -b {$branch}) && " .
                "GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/echo " .
                "git -c safe.directory=" . escapeshellarg($projectDir) . " " .
                "-c credential.helper='!f() { echo \"username=git\"; echo \"password={$token}\"; }; f' " .
-               "push origin {$branch} 2>&1";
+               "push --force origin {$branch} 2>&1";
     $output = shell_exec($pushCmd);
     $code = 0;
     if (stripos($output, 'fatal') !== false || stripos($output, 'error') !== false) {
