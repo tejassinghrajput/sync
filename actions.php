@@ -179,7 +179,7 @@ function pushToGitHub($filePath, $commitMessage, $taskId = null) {
                "GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/echo " .
                "git -c safe.directory=" . escapeshellarg($projectDir) . " " .
                "-c credential.helper='!f() { echo \"username=git\"; echo \"password={$token}\"; }; f' " .
-               "pull --no-edit origin {$branch} 2>&1 || true";
+               "pull --no-edit --allow-unrelated-histories origin {$branch} 2>&1 || true";
     $pullOut = shell_exec($pullCmd);
     logMessage("Git pull result: " . str_replace($token, '***', $pullOut));
     
